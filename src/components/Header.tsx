@@ -21,6 +21,8 @@ export default function Header({ onOpenAuth }: { onOpenAuth: (mode: 'login' | 's
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [active, setActive] = useState('#home');
+  const [signOutError, setSignOutError] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -60,8 +62,21 @@ export default function Header({ onOpenAuth }: { onOpenAuth: (mode: 'login' | 's
   }, [open]);
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    setOpen(false);
+    if (signingOut) return;
+    setSigningOut(true);
+    setSignOutError(null);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        setSignOutError('Unable to log out. Please check your connection and try again.');
+        return;
+      }
+      setOpen(false);
+    } catch {
+      setSignOutError('Unable to log out. Please check your connection and try again.');
+    } finally {
+      setSigningOut(false);
+    }
   };
 
   return (
@@ -116,16 +131,18 @@ export default function Header({ onOpenAuth }: { onOpenAuth: (mode: 'login' | 's
         <div className="hidden items-center gap-3 lg:flex">
           {user ? (
             <>
+              {signOutError && <p role="alert" className="text-xs text-brand-700">{signOutError}</p>}
               <span className="text-sm font-medium text-ink-600">
                 {user.email}
               </span>
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="flex items-center gap-1.5 rounded-xl border border-ink-200 px-4 py-2.5 text-sm font-semibold text-ink-700 transition hover:bg-ink-50"
+                disabled={signingOut}
+                className="flex items-center gap-1.5 rounded-xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-70"
               >
                 <LogOut className="h-4 w-4" />
-                Log out
+                {signingOut ? 'Logging out...' : 'Log out'}
               </button>
             </>
           ) : (
@@ -190,14 +207,16 @@ export default function Header({ onOpenAuth }: { onOpenAuth: (mode: 'login' | 's
             <div className="mt-2 border-t border-ink-100 pt-3">
               {user ? (
                 <div className="flex flex-col gap-1">
+                  {signOutError && <p role="alert" className="px-4 text-xs text-brand-700">{signOutError}</p>}
                   <span className="px-4 py-2 text-sm text-ink-500">{user.email}</span>
                   <button
                     type="button"
                     onClick={handleSignOut}
-                    className="flex items-center gap-2 rounded-xl px-4 py-3 text-base font-semibold text-ink-700 transition hover:bg-ink-50"
+                    disabled={signingOut}
+                    className="flex items-center gap-2 rounded-xl px-4 py-3 text-base font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-70"
                   >
                     <LogOut className="h-5 w-5" />
-                    Log out
+                    {signingOut ? 'Logging out...' : 'Log out'}
                   </button>
                 </div>
               ) : (

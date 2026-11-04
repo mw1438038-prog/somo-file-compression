@@ -2,7 +2,7 @@ import { FileText, Check } from 'lucide-react';
 
 const FEATURES = [
   'PDF compression with three levels',
-  'Up to 6 MB per file',
+  'Up to 10 MB per file',
   'No registration fees, no hidden costs',
   'Unlimited compressions',
   'Secure file processing',

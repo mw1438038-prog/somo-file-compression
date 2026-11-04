@@ -5,7 +5,7 @@ const FAQS: { question: string; answer: string }[] = [
   {
     question: 'How do I compress a PDF?',
     answer:
-      'Drag your PDF into the upload area or click it to browse and select a file (up to 6 MB). Choose one of the three compression levels, then click Compress PDF. When processing is done, click Download compressed PDF to save the result.',
+      'Drag your PDF into the upload area or click it to browse and select a file (up to 10 MB). Choose one of the three compression levels, then click Compress PDF. When processing is done, click Download compressed PDF to save the result.',
   },
   {
     question: 'Which compression level should I choose?',
@@ -15,7 +15,7 @@ const FAQS: { question: string; answer: string }[] = [
   {
     question: 'Is there a file size limit?',
     answer:
-      'Yes. The upload limit is 6 MB per PDF. If your file is larger you will see a message letting you know it exceeds the limit. There is also a rate limit on how many compressions you can run within a rolling time window.',
+      'Yes. The upload limit is 10 MB per PDF. If your file is larger you will see a message letting you know it exceeds the limit. There is also a rate limit on how many compressions you can run within a rolling time window.',
   },
   {
     question: 'Can I download my compressed PDF?',

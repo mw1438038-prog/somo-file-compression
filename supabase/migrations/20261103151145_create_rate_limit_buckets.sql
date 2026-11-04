@@ -33,7 +33,7 @@ CREATE OR REPLACE FUNCTION public.consume_rate_limit(p_key text, p_limit integer
 RETURNS TABLE (is_allowed boolean, current_hits integer, retry_after_seconds integer)
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
 DECLARE
   v_now timestamptz := now();

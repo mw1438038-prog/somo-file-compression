@@ -3,6 +3,32 @@ import { X, Loader2, Mail, Lock, User as UserIcon } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 
 type Mode = 'login' | 'signup';
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function getAuthErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof Error)) return fallback;
+  const message = error.message.toLowerCase();
+
+  if (error instanceof TypeError) return 'Network error. Check your connection and try again.';
+  if (message.includes('email not confirmed')) {
+    return 'Please confirm your email before logging in. You can request a new confirmation email below.';
+  }
+  if (
+    message.includes('535') ||
+    message.includes('error sending confirmation email') ||
+    message.includes('sending email')
+  ) {
+    return 'Supabase could not send the confirmation email. Check the SMTP settings in your Supabase Dashboard.';
+  }
+  if (message.includes('invalid login')) return 'Incorrect email or password.';
+  if (message.includes('already registered')) {
+    return 'An account with this email already exists. Please log in.';
+  }
+  if (message.includes('rate limit') || message.includes('too many requests')) {
+    return 'Too many attempts. Please wait a while and try again.';
+  }
+  return fallback;
+}
 
 interface AuthModalProps {
   open: boolean;
@@ -19,6 +45,7 @@ export default function AuthModal({ open, mode, onClose, onSwitchMode }: AuthMod
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [forgotPassword, setForgotPassword] = useState(false);
+  const [canResendConfirmation, setCanResendConfirmation] = useState(false);
 
   if (!open) return null;
 
@@ -28,33 +55,86 @@ export default function AuthModal({ open, mode, onClose, onSwitchMode }: AuthMod
     setName('');
     setError(null);
     setInfo(null);
+    setCanResendConfirmation(false);
+  };
+
+  const resendConfirmation = async () => {
+    const normalizedEmail = email.trim();
+    if (!EMAIL_RE.test(normalizedEmail) || busy) {
+      setError('Enter a valid email address before requesting another confirmation email.');
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const { error: resendError } = await supabase.auth.resend({
+        type: 'signup',
+        email: normalizedEmail,
+      });
+      if (resendError) throw resendError;
+      setInfo('If an unconfirmed account exists for this address, a confirmation email has been sent.');
+      setCanResendConfirmation(false);
+    } catch (err) {
+      setError(
+        getAuthErrorMessage(
+          err,
+          'We could not resend the confirmation email. Please try again.',
+        ),
+      );
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (busy) return;
 
-    setBusy(true);
     setError(null);
     setInfo(null);
+    setCanResendConfirmation(false);
 
+    const normalizedEmail = email.trim();
+    const normalizedName = name.trim();
+    if (!EMAIL_RE.test(normalizedEmail)) {
+      setError('Enter a valid email address.');
+      return;
+    }
+    if (mode === 'signup' && !forgotPassword && !normalizedName) {
+      setError('Enter your name.');
+      return;
+    }
+    if (!forgotPassword && password.length < 6) {
+      setError('Your password must be at least 6 characters.');
+      return;
+    }
+
+    setBusy(true);
     try {
       if (forgotPassword) {
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-          email.trim(),
+          normalizedEmail,
         );
         if (resetError) throw resetError;
         setInfo("Password reset instructions have been sent to your email.");
       } else if (mode === 'signup') {
-        const { error: signUpError } = await supabase.auth.signUp({
-          email: email.trim(),
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email: normalizedEmail,
           password,
-          options: { data: { full_name: name.trim() } },
+          options: { data: { full_name: normalizedName } },
         });
         if (signUpError) throw signUpError;
+        if (!data.session) {
+          setPassword('');
+          setInfo('If registration succeeded, a confirmation email should arrive shortly. Confirm your email before logging in.');
+          setCanResendConfirmation(true);
+          return;
+        }
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
+          email: normalizedEmail,
           password,
         });
         if (signInError) throw signInError;
@@ -68,14 +148,17 @@ export default function AuthModal({ open, mode, onClose, onSwitchMode }: AuthMod
         setName('');
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
-      setError(
-        message.includes('Invalid login')
-          ? 'Incorrect email or password.'
-          : message.includes('already registered')
-            ? 'An account with this email already exists. Please log in.'
-            : message,
+      const errorMessage = getAuthErrorMessage(
+        err,
+        'We could not complete your request. Please try again.',
       );
+      setError(errorMessage);
+      if (
+        errorMessage.includes('confirm your email') ||
+        errorMessage.includes('could not send the confirmation email')
+      ) {
+        setCanResendConfirmation(true);
+      }
     } finally {
       setBusy(false);
     }
@@ -146,7 +229,10 @@ export default function AuthModal({ open, mode, onClose, onSwitchMode }: AuthMod
                 id="auth-email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setCanResendConfirmation(false);
+                }}
                 disabled={busy}
                 required
                 placeholder="you@example.com"
@@ -183,6 +269,17 @@ export default function AuthModal({ open, mode, onClose, onSwitchMode }: AuthMod
 
           {info && (
             <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">{info}</p>
+          )}
+
+          {canResendConfirmation && (
+            <button
+              type="button"
+              onClick={resendConfirmation}
+              disabled={busy}
+              className="w-full text-sm font-semibold text-brand-600 transition hover:text-brand-700 disabled:opacity-70"
+            >
+              Resend confirmation email
+            </button>
           )}
 
           <button
@@ -238,6 +335,7 @@ export default function AuthModal({ open, mode, onClose, onSwitchMode }: AuthMod
                 onClick={() => {
                   setError(null);
                   setInfo(null);
+                  setCanResendConfirmation(false);
                   onSwitchMode(isSignup ? 'login' : 'signup');
                 }}
                 className="font-semibold text-brand-600 transition hover:text-brand-700"

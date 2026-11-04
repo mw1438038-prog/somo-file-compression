@@ -1,3 +1,4 @@
+
 import { useState, type DragEvent, type ChangeEvent } from 'react';
 import {
   FileDown,
@@ -13,6 +14,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { supabaseKey, supabaseUrl } from '@/lib/supabaseClient';
 
 type Level = 'extreme' | 'recommended' | 'less';
 
@@ -23,7 +25,12 @@ const LEVELS: {
   icon: typeof Zap;
   badge?: string;
 }[] = [
-  { id: 'extreme', label: 'Extreme Compression', description: 'Smallest file, lower image detail.', icon: Zap },
+  {
+    id: 'extreme',
+    label: 'Extreme Compression',
+    description: 'Smallest file, lower image detail.',
+    icon: Zap,
+  },
   {
     id: 'recommended',
     label: 'Recommended',
@@ -31,12 +38,16 @@ const LEVELS: {
     icon: Sparkles,
     badge: 'Popular',
   },
-  { id: 'less', label: 'Less Compression', description: 'Highest quality, modest savings.', icon: Feather },
+  {
+    id: 'less',
+    label: 'Less Compression',
+    description: 'Highest quality, modest savings.',
+    icon: Feather,
+  },
 ];
 
-const MAX_BYTES = 6 * 1024 * 1024;
-const COMPRESSION_TIMEOUT_MS = 120_000;
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const MAX_BYTES = 10 * 1024 * 1024;
+const COMPRESSION_TIMEOUT_MS = 140_000;
 
 interface Result {
   url: string;
@@ -52,8 +63,13 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-export default function PdfCompressor({ onRequireAuth }: { onRequireAuth: () => void }) {
+export default function PdfCompressor({
+  onRequireAuth,
+}: {
+  onRequireAuth: () => void;
+}) {
   const { session } = useAuth();
+
   const [file, setFile] = useState<File | null>(null);
   const [level, setLevel] = useState<Level>('recommended');
   const [dragging, setDragging] = useState(false);
@@ -66,27 +82,41 @@ export default function PdfCompressor({ onRequireAuth }: { onRequireAuth: () => 
       onRequireAuth();
       return;
     }
+
+    if (result) {
+      URL.revokeObjectURL(result.url);
+    }
+
     setResult(null);
     setError(null);
+
     if (!candidate) return;
+
+    if (candidate.size > MAX_BYTES) {
+      setFile(null);
+      setError(
+        'Your PDF is too large. Please upload a PDF smaller than 10 MB.',
+      );
+      return;
+    }
+
     const isPdf =
       candidate.type === 'application/pdf' ||
       candidate.name.toLowerCase().endsWith('.pdf');
+
     if (!isPdf) {
       setFile(null);
-      setError('Please choose a PDF file.');
+      setError('Please choose a valid PDF file.');
       return;
     }
-    if (candidate.size > MAX_BYTES) {
-      setFile(null);
-      setError('This file is larger than the 6 MB limit.');
-      return;
-    }
+
     setFile(candidate);
   };
 
-  const onInputChange = (e: ChangeEvent<HTMLInputElement>) =>
+  const onInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     chooseFile(e.target.files?.[0]);
+    e.target.value = '';
+  };
 
   const onDrop = (e: DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
@@ -95,40 +125,105 @@ export default function PdfCompressor({ onRequireAuth }: { onRequireAuth: () => 
   };
 
   const compress = async () => {
-    if (!file) return;
+    if (!file || busy) return;
+
     if (!session) {
       onRequireAuth();
       return;
     }
-    if (!SUPABASE_URL) {
-      setError('The compression service is not configured. Please try again later.');
-      return;
+
+    if (result) {
+      URL.revokeObjectURL(result.url);
     }
-    if (result) URL.revokeObjectURL(result.url);
+
     setBusy(true);
     setError(null);
     setResult(null);
+
     try {
       const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/compress-pdf?level=${level}`,
+        `${supabaseUrl}/functions/v1/compress-pdf?level=${level}`,
         {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${session.access_token}`,
+            apikey: supabaseKey,
             'Content-Type': 'application/pdf',
           },
           body: file,
           signal: AbortSignal.timeout(COMPRESSION_TIMEOUT_MS),
         },
       );
+
       if (!response.ok) {
-        const body = await response.json().catch(() => null);
-        throw new Error(body?.error ?? `Compression failed (${response.status}).`);
+        const body: unknown = await response.json().catch(() => null);
+
+        const code =
+          typeof body === 'object' &&
+          body !== null &&
+          'code' in body
+            ? body.code
+            : undefined;
+
+        let message =
+          'We could not compress this PDF. Please try another file.';
+
+        if (response.status === 413) {
+          message =
+            'Your PDF is too large. Please upload a PDF smaller than 10 MB.';
+        } else if (response.status === 415) {
+          message =
+            'This file is not a valid PDF. Please choose a valid PDF file.';
+        } else if (
+          response.status === 422 &&
+          code === 'password_protected_pdf'
+        ) {
+          message =
+            'This PDF is password-protected. Please remove its password and try again.';
+        } else if (response.status === 422) {
+          message =
+            'This PDF appears to be corrupted or unreadable. Please try another PDF.';
+        } else if (response.status === 546) {
+          message =
+            'This PDF could not be compressed because it reached the processing limit. Please try another PDF or a lighter compression level.';
+        } else if (response.status === 401) {
+          message =
+            'Your session has expired. Please log in again and retry.';
+        } else if (response.status === 429) {
+          message =
+            'You have reached the compression limit. Please wait a while and try again.';
+        } else if (response.status === 503) {
+          message =
+            'Compression is temporarily unavailable. Please try again later.';
+        } else if (response.status >= 500) {
+          message =
+            'A server error occurred while compressing your PDF. Please try again later.';
+        }
+
+        setError(message);
+        return;
       }
+
       const blob = await response.blob();
-      const originalSize = Number(response.headers.get('X-Original-Size') ?? file.size);
-      const compressedSize = Number(response.headers.get('X-Compressed-Size') ?? blob.size);
-      const applied = response.headers.get('X-Compression-Applied') === 'true';
+
+      if (blob.size === 0 || blob.type !== 'application/pdf') {
+        setError(
+          'The compression service returned an invalid PDF. Please try again.',
+        );
+        return;
+      }
+
+      const originalSize = Number(
+        response.headers.get('X-Original-Size') ?? file.size,
+      );
+
+      const compressedSize = Number(
+        response.headers.get('X-Compressed-Size') ?? blob.size,
+      );
+
+      const applied =
+        response.headers.get('X-Compression-Applied') === 'true';
+
       setResult({
         url: URL.createObjectURL(blob),
         originalSize,
@@ -137,14 +232,21 @@ export default function PdfCompressor({ onRequireAuth }: { onRequireAuth: () => 
         fileName: file.name.replace(/\.pdf$/i, '') + '-compressed.pdf',
       });
     } catch (err) {
-      if (err instanceof DOMException && err.name === 'TimeoutError') {
+      if (
+        err instanceof DOMException &&
+        (err.name === 'TimeoutError' || err.name === 'AbortError')
+      ) {
         setError(
-          'Compression took too long. Try a smaller file or a lighter compression level.',
+          'Compression took too long. Please try a smaller PDF or a lighter compression level.',
         );
       } else if (err instanceof TypeError) {
-        setError('Network error. Check your connection and try again.');
+        setError(
+          'Connection failed. Please check your internet and try again.',
+        );
       } else {
-        setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+        setError(
+          'The compression service encountered an error. Please try again later.',
+        );
       }
     } finally {
       setBusy(false);
@@ -153,7 +255,12 @@ export default function PdfCompressor({ onRequireAuth }: { onRequireAuth: () => 
 
   const saved =
     result && result.originalSize > 0
-      ? Math.max(0, Math.round((1 - result.compressedSize / result.originalSize) * 100))
+      ? Math.max(
+          0,
+          Math.round(
+            (1 - result.compressedSize / result.originalSize) * 100,
+          ),
+        )
       : 0;
 
   return (
@@ -163,171 +270,190 @@ export default function PdfCompressor({ onRequireAuth }: { onRequireAuth: () => 
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-600/10 text-brand-600">
             <Lock className="h-8 w-8" />
           </div>
-          <h3 className="mt-4 text-lg font-bold text-ink-900">Sign in to compress PDFs</h3>
+          <h3 className="mt-4 text-lg font-bold text-ink-900">
+            Sign in to compress PDFs
+          </h3>
           <p className="mt-1.5 max-w-sm text-sm text-ink-500">
             Create a free account or log in to start compressing your PDF files.
           </p>
-          <button
-            type="button"
-            onClick={onRequireAuth}
-            className="mt-5 flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 py-3 font-semibold text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.98]"
-          >
-            <FileText className="h-5 w-5" />
-            Get Started — It's Free
-          </button>
         </div>
       ) : (
         <>
-      <label
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={onDrop}
-        className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-all sm:py-14 ${
-          dragging
-            ? 'border-brand-600 bg-brand-50 scale-[1.01]'
-            : 'border-ink-200 bg-ink-50/40 hover:border-brand-400 hover:bg-brand-50/30'
-        }`}
-      >
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-600/10 text-brand-600 transition-transform group-hover:scale-110">
-          <UploadCloud className="h-8 w-8" />
-        </div>
-        <span className="mt-4 text-base font-semibold text-ink-900 sm:text-lg">
-          {file ? file.name : 'Drop your PDF here or click to choose'}
-        </span>
-        <span className="mt-1 text-sm text-ink-400">
-          {file ? formatBytes(file.size) : 'PDF files up to 6 MB'}
-        </span>
-        {file && (
-          <span
-            role="button"
-            tabIndex={0}
-            onClick={(e) => {
-              e.preventDefault();
-              setFile(null);
-              setResult(null);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setFile(null);
-                setResult(null);
-              }
-            }}
-            className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-ink-100 text-ink-500 transition hover:bg-ink-200 hover:text-ink-700"
-          >
-            <X className="h-4 w-4" />
-          </span>
-        )}
-        <input
-          type="file"
-          accept="application/pdf,.pdf"
-          className="sr-only"
-          onChange={onInputChange}
-        />
-      </label>
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-ink-900">
+              Compress your PDF
+            </h2>
+            <p className="mt-1 text-sm text-ink-500">
+              Upload a PDF up to 10 MB and choose your compression level.
+            </p>
+          </div>
 
-      {file && (
-        <section className="mt-6 space-y-5 animate-fade-up">
-          <div>
-            <p className="mb-3 text-sm font-semibold text-ink-700">Choose compression level</p>
+          <label
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={onDrop}
+            className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-10 text-center transition ${
+              dragging
+                ? 'border-brand-500 bg-brand-50'
+                : 'border-ink-200 bg-ink-50/40 hover:border-brand-400'
+            }`}
+          >
+            <UploadCloud className="h-10 w-10 text-brand-600" />
+            <span className="mt-3 font-semibold text-ink-900">
+              {file ? file.name : 'Choose a PDF or drag it here'}
+            </span>
+            <span className="mt-1 text-sm text-ink-500">
+              Maximum file size: 10 MB
+            </span>
+            <input
+              type="file"
+              accept="application/pdf,.pdf"
+              className="hidden"
+              onChange={onInputChange}
+              disabled={busy}
+            />
+          </label>
+
+          {file && (
+            <div className="mt-4 flex items-center justify-between rounded-xl bg-ink-50 p-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <FileText className="h-6 w-6 shrink-0 text-brand-600" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-ink-900">
+                    {file.name}
+                  </p>
+                  <p className="text-xs text-ink-500">
+                    {formatBytes(file.size)}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setFile(null);
+                  setError(null);
+                  if (result) URL.revokeObjectURL(result.url);
+                  setResult(null);
+                }}
+                disabled={busy}
+                className="rounded-lg p-2 text-ink-500 hover:bg-white hover:text-red-600"
+                aria-label="Remove selected PDF"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          )}
+
+          <div className="mt-6">
+            <h3 className="mb-3 text-sm font-bold text-ink-900">
+              Compression level
+            </h3>
+
             <div className="grid gap-3 sm:grid-cols-3">
-              {LEVELS.map((opt) => {
-                const Icon = opt.icon;
-                const selected = level === opt.id;
+              {LEVELS.map((item) => {
+                const Icon = item.icon;
+                const selected = level === item.id;
+
                 return (
                   <button
-                    key={opt.id}
+                    key={item.id}
                     type="button"
-                    onClick={() => setLevel(opt.id)}
-                    className={`relative rounded-2xl border p-4 text-left transition-all ${
+                    onClick={() => setLevel(item.id)}
+                    disabled={busy}
+                    className={`relative rounded-xl border p-4 text-left transition ${
                       selected
-                        ? 'border-brand-600 bg-brand-600 text-white shadow-md'
-                        : 'border-ink-200 bg-white text-ink-900 hover:border-brand-300 hover:shadow-soft'
+                        ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500'
+                        : 'border-ink-200 hover:border-brand-300'
                     }`}
                   >
-                    <div className="flex items-center gap-2">
-                      <Icon className={`h-5 w-5 ${selected ? 'text-white' : 'text-brand-600'}`} />
-                      <span className="font-semibold">{opt.label}</span>
-                    </div>
-                    <span
-                      className={`mt-1.5 block text-sm ${
-                        selected ? 'text-brand-50' : 'text-ink-400'
-                      }`}
-                    >
-                      {opt.description}
-                    </span>
-                    {opt.badge && (
-                      <span
-                        className={`absolute -top-2 right-3 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                          selected ? 'bg-white text-brand-600' : 'bg-brand-600 text-white'
-                        }`}
-                      >
-                        {opt.badge}
+                    {item.badge && (
+                      <span className="absolute right-2 top-2 rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                        {item.badge}
                       </span>
                     )}
+                    <Icon className="mb-2 h-5 w-5 text-brand-600" />
+                    <p className="text-sm font-bold text-ink-900">
+                      {item.label}
+                    </p>
+                    <p className="mt-1 text-xs text-ink-500">
+                      {item.description}
+                    </p>
                   </button>
                 );
               })}
             </div>
           </div>
 
+          {error && (
+            <div
+              role="alert"
+              className="mt-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+            >
+              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+              <p>{error}</p>
+            </div>
+          )}
+
           <button
             type="button"
             onClick={compress}
-            disabled={busy}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 py-3.5 font-semibold text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70"
+            disabled={!file || busy}
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 py-3.5 font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileText className="h-5 w-5" />}
-            {busy ? 'Compressing...' : 'Compress PDF'}
+            {busy ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Compressing PDF...
+              </>
+            ) : (
+              <>
+                <Zap className="h-5 w-5" />
+                Compress PDF
+              </>
+            )}
           </button>
-        </section>
-      )}
 
-      {error && (
-        <div
-          role="alert"
-          className="mt-5 flex items-start gap-3 rounded-xl border border-brand-200 bg-brand-50 p-4 text-brand-800 animate-fade-in"
-        >
-          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
-          <p className="text-sm">{error}</p>
-        </div>
-      )}
+          {result && (
+            <div className="mt-6 rounded-2xl border border-green-200 bg-green-50 p-5">
+              <div className="flex items-center gap-2 text-green-700">
+                <CheckCircle2 className="h-6 w-6" />
+                <h3 className="font-bold">PDF compression complete</h3>
+              </div>
 
-      {result && (
-        <section className="mt-6 rounded-2xl border border-ink-100 bg-ink-50/50 p-6 animate-scale-in">
-          <div className="flex items-center gap-2 text-green-700">
-            <CheckCircle2 className="h-5 w-5" />
-            <span className="font-semibold">
-              {result.applied ? `You saved ${saved}%` : 'This PDF was already optimized'}
-            </span>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-            <div className="rounded-xl bg-white p-3 shadow-soft">
-              <p className="text-ink-400">Original</p>
-              <p className="text-lg font-bold text-ink-900">
-                {formatBytes(result.originalSize)}
+              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-xl bg-white p-3">
+                  <p className="text-ink-500">Original size</p>
+                  <p className="mt-1 font-bold text-ink-900">
+                    {formatBytes(result.originalSize)}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-white p-3">
+                  <p className="text-ink-500">Compressed size</p>
+                  <p className="mt-1 font-bold text-ink-900">
+                    {formatBytes(result.compressedSize)}
+                  </p>
+                </div>
+              </div>
+
+              <p className="mt-3 text-sm text-green-800">
+                {result.applied
+                  ? `Your PDF size was reduced by ${saved}%.`
+                  : 'This PDF was already optimized. No further size reduction was possible.'}
               </p>
+
+              <a
+                href={result.url}
+                download={result.fileName}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-3 font-semibold text-white hover:bg-green-700"
+              >
+                <FileDown className="h-5 w-5" />
+                Download Compressed PDF
+              </a>
             </div>
-            <div className="rounded-xl bg-white p-3 shadow-soft">
-              <p className="text-ink-400">Compressed</p>
-              <p className="text-lg font-bold text-brand-600">
-                {formatBytes(result.compressedSize)}
-              </p>
-            </div>
-          </div>
-          <a
-            href={result.url}
-            download={result.fileName}
-            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-ink-900 px-6 py-3.5 font-semibold text-white transition hover:bg-ink-800 active:scale-[0.99]"
-          >
-            <FileDown className="h-5 w-5" />
-            Download compressed PDF
-          </a>
-        </section>
-      )}
+          )}
         </>
       )}
     </div>
