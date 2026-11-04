@@ -1,0 +1,13 @@
+{
+  "projectId": "72629089",
+  "functions": {
+    "compress-pdf": {
+      "hasChanged": false,
+      "hash": "751663dccb5840fb2ed177a709339a76cfbcef3ecf3d65040138f1f5331d8dbb"
+    },
+    "contact": {
+      "hasChanged": false,
+      "hash": "d5c82b4f27d7e8c401bb9209894ae96e45d5e25c05b678e692ad54ce3739b7cd"
+    }
+  }
+}

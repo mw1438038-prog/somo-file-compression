@@ -1,0 +1,5 @@
+[functions.compress-pdf]
+verify_jwt = true
+
+[functions.contact]
+verify_jwt = false
