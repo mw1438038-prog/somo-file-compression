@@ -17,7 +17,13 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Contact', href: '#contact' },
 ];
 
-export default function Header({ onOpenAuth }: { onOpenAuth: (mode: 'login' | 'signup') => void }) {
+export default function Header({
+  onOpenAuth,
+  homePath = '',
+}: {
+  onOpenAuth: (mode: 'login' | 'signup') => void;
+  homePath?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [active, setActive] = useState('#home');
@@ -89,7 +95,7 @@ export default function Header({ onOpenAuth }: { onOpenAuth: (mode: 'login' | 's
     >
       <div className="container-page flex h-16 items-center justify-between sm:h-18">
         <a
-          href="#home"
+          href={`${homePath}#home`}
           className="flex items-center gap-2.5"
           onClick={() => setActive('#home')}
         >
@@ -110,7 +116,7 @@ export default function Header({ onOpenAuth }: { onOpenAuth: (mode: 'login' | 's
             return (
               <a
                 key={item.href}
-                href={item.href}
+                href={`${homePath}${item.href}`}
                 className={`relative rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors ${
                   isActive
                     ? 'text-brand-600'
@@ -192,7 +198,7 @@ export default function Header({ onOpenAuth }: { onOpenAuth: (mode: 'login' | 's
               return (
                 <a
                   key={item.href}
-                  href={item.href}
+                  href={`${homePath}${item.href}`}
                   onClick={() => setOpen(false)}
                   className={`flex items-center rounded-xl px-4 py-3 text-base font-semibold transition ${
                     isActive

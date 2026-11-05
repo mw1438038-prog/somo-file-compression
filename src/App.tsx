@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import AuthModal from '@/components/AuthModal';
@@ -12,13 +12,31 @@ import Pricing from '@/sections/Pricing';
 import FAQ from '@/sections/FAQ';
 import Contact from '@/sections/Contact';
 import FinalCTA from '@/sections/FinalCTA';
+import LegalPage from '@/pages/LegalPage';
+import { getSitePageKey } from '@/lib/legalRoutes';
 
 type AuthMode = 'login' | 'signup';
 
 function AppContent() {
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('login');
+  const [pathname, setPathname] = useState(() => window.location.pathname);
   const { session } = useAuth();
+  const sitePage = getSitePageKey(pathname);
+
+  useEffect(() => {
+    const handlePopState = () => setPathname(window.location.pathname);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigate = (path: string) => {
+    if (window.location.pathname !== path) {
+      window.history.pushState(null, '', path);
+    }
+    setPathname(window.location.pathname);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
 
   const openAuth = (mode: AuthMode) => {
     setAuthMode(mode);
@@ -30,10 +48,16 @@ function AppContent() {
   };
 
   return (
-    <AuthProvider>
-      <div className="flex min-h-screen flex-col bg-white text-ink-900">
-        <Header onOpenAuth={openAuth} />
-        <main className="flex-1">
+    <div className="flex min-h-screen flex-col bg-white text-ink-900">
+      <Header onOpenAuth={openAuth} homePath={sitePage ? '/' : ''} />
+      <main className="flex-1">
+        {sitePage ? (
+          <LegalPage
+            page={sitePage}
+            onNavigateHome={() => navigate('/')}
+          />
+        ) : (
+          <>
           {session && (
             <section id="compress" className="scroll-mt-nav bg-brand-50/50">
               <div className="container-page py-12 sm:py-16">
@@ -59,16 +83,17 @@ function AppContent() {
           <FAQ />
           <Contact />
           <FinalCTA />
-        </main>
-        <Footer />
-        <AuthModal
-          open={authOpen}
-          mode={authMode}
-          onClose={() => setAuthOpen(false)}
-          onSwitchMode={(mode) => setAuthMode(mode)}
-        />
-      </div>
-    </AuthProvider>
+          </>
+        )}
+      </main>
+      <Footer onNavigate={navigate} isRoutedPage={Boolean(sitePage)} />
+      <AuthModal
+        open={authOpen}
+        mode={authMode}
+        onClose={() => setAuthOpen(false)}
+        onSwitchMode={(mode) => setAuthMode(mode)}
+      />
+    </div>
   );
 }
 

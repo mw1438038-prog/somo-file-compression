@@ -1,0 +1,13 @@
+{
+  "rewrites": [
+    { "source": "/about-us", "destination": "/index.html" },
+    { "source": "/help-center", "destination": "/index.html" },
+    { "source": "/privacy-policy", "destination": "/index.html" },
+    { "source": "/terms-of-service", "destination": "/index.html" },
+    { "source": "/cookie-policy", "destination": "/index.html" },
+    {
+      "source": "/refund-cancellation-policy",
+      "destination": "/index.html"
+    }
+  ]
+}

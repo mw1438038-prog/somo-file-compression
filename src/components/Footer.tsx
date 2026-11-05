@@ -3,6 +3,7 @@ import { FileText } from 'lucide-react';
 interface FooterLink {
   label: string;
   href?: string;
+  appPage?: boolean;
 }
 
 const FOOTER_COLUMNS: { title: string; links: FooterLink[] }[] = [
@@ -17,7 +18,7 @@ const FOOTER_COLUMNS: { title: string; links: FooterLink[] }[] = [
   {
     title: 'Company',
     links: [
-      { label: 'About Us' },
+      { label: 'About Us', href: '/about-us', appPage: true },
       { label: 'Contact Us', href: '#contact' },
     ],
   },
@@ -25,21 +26,31 @@ const FOOTER_COLUMNS: { title: string; links: FooterLink[] }[] = [
     title: 'Support',
     links: [
       { label: 'FAQ', href: '#faq' },
-      { label: 'Help Center' },
+      { label: 'Help Center', href: '/help-center', appPage: true },
     ],
   },
   {
     title: 'Legal',
     links: [
-      { label: 'Privacy Policy' },
-      { label: 'Terms of Service' },
-      { label: 'Cookie Policy' },
-      { label: 'Refund & Cancellation Policy' },
+      { label: 'Privacy Policy', href: '/privacy-policy', appPage: true },
+      { label: 'Terms of Service', href: '/terms-of-service', appPage: true },
+      { label: 'Cookie Policy', href: '/cookie-policy', appPage: true },
+      {
+        label: 'Refund & Cancellation Policy',
+        href: '/refund-cancellation-policy',
+        appPage: true,
+      },
     ],
   },
 ];
 
-export default function Footer() {
+export default function Footer({
+  onNavigate,
+  isRoutedPage,
+}: {
+  onNavigate: (path: string) => void;
+  isRoutedPage: boolean;
+}) {
   return (
     <footer className="bg-ink-950 text-ink-200">
       <div className="container-page py-14 sm:py-16">
@@ -71,7 +82,19 @@ export default function Footer() {
                   link.href ? (
                     <li key={link.label}>
                       <a
-                        href={link.href}
+                        href={
+                          isRoutedPage && !link.appPage
+                            ? `/${link.href}`
+                            : link.href
+                        }
+                        onClick={
+                          link.appPage
+                            ? (event) => {
+                                event.preventDefault();
+                                onNavigate(link.href!);
+                              }
+                            : undefined
+                        }
                         className="text-sm text-ink-400 transition-colors hover:text-brand-400"
                       >
                         {link.label}
@@ -97,9 +120,6 @@ export default function Footer() {
           <div className="flex flex-col items-center justify-between gap-4 text-center sm:flex-row sm:text-left">
             <p className="text-xs text-ink-400">
               © 2026 Somo File Compression. All rights reserved.
-            </p>
-            <p className="text-xs text-ink-500">
-              Operated by <span className="font-semibold text-ink-300">TYBWORK.LTD</span>
             </p>
           </div>
         </div>
