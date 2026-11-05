@@ -1,7 +1,7 @@
 import type { SitePageKey } from '@/lib/legalRoutes';
 
 export const SITE_ORIGIN =
-  'https://somo-file-compression-jhqk-632glofah-waqas-e326.vercel.app';
+  'https://somo-file-compression-jhqk.vercel.app';
 
 export interface PageSeo {
   title: string;
