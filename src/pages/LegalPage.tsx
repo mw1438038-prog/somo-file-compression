@@ -1,6 +1,6 @@
 import { ArrowLeft } from 'lucide-react';
-import { useEffect } from 'react';
 import type { SitePageKey } from '@/lib/legalRoutes';
+import { SITE_PAGE_SEO } from '@/lib/siteSeo';
 
 interface LegalSection {
   heading: string;
@@ -12,7 +12,6 @@ interface LegalSection {
 
 interface LegalDocument {
   title: string;
-  description: string;
   introduction: string;
   sections: LegalSection[];
 }
@@ -20,8 +19,6 @@ interface LegalDocument {
 const PAGE_DOCUMENTS: Record<SitePageKey, LegalDocument> = {
   about: {
     title: 'About Us',
-    description:
-      'Learn about Somo File Compression and its simple, accessible PDF compression service.',
     introduction:
       'Somo File Compression helps people reduce the size of PDF files through a straightforward online tool.',
     sections: [
@@ -54,8 +51,6 @@ const PAGE_DOCUMENTS: Record<SitePageKey, LegalDocument> = {
   },
   help: {
     title: 'Help Center',
-    description:
-      'Get help signing in, compressing PDFs, choosing a compression level, and troubleshooting file errors.',
     introduction:
       'Find guidance for using Somo File Compression and resolving common account or PDF processing issues.',
     sections: [
@@ -134,8 +129,6 @@ const PAGE_DOCUMENTS: Record<SitePageKey, LegalDocument> = {
   },
   privacy: {
     title: 'Privacy Policy',
-    description:
-      'Read how Somo File Compression handles account, contact form, and PDF processing information.',
     introduction:
       'This policy explains what information is handled when you use Somo File Compression and how it is used in the service.',
     sections: [
@@ -188,8 +181,6 @@ const PAGE_DOCUMENTS: Record<SitePageKey, LegalDocument> = {
   },
   terms: {
     title: 'Terms of Service',
-    description:
-      'Review the terms for using Somo File Compression and its PDF compression service.',
     introduction:
       'By using Somo File Compression, you agree to use the service responsibly and in accordance with these terms.',
     sections: [
@@ -244,8 +235,6 @@ const PAGE_DOCUMENTS: Record<SitePageKey, LegalDocument> = {
   },
   cookies: {
     title: 'Cookie Policy',
-    description:
-      'Learn about authentication browser storage and tracking technologies on Somo File Compression.',
     introduction:
       'This policy describes the browser storage and tracking information confirmed by the current application.',
     sections: [
@@ -277,8 +266,6 @@ const PAGE_DOCUMENTS: Record<SitePageKey, LegalDocument> = {
   },
   refunds: {
     title: 'Refund & Cancellation Policy',
-    description:
-      'Understand the current refund and cancellation policy for the free Somo File Compression service.',
     introduction:
       'As of 5 November 2026, Somo File Compression has no paid plans, subscriptions, or payment processing.',
     sections: [
@@ -318,26 +305,10 @@ export default function LegalPage({
   onNavigateHome: () => void;
 }) {
   const document = PAGE_DOCUMENTS[page];
-
-  useEffect(() => {
-    const previousTitle = window.document.title;
-    const descriptionMeta = window.document.querySelector<HTMLMetaElement>(
-      'meta[name="description"]',
-    );
-    const previousDescription = descriptionMeta?.content;
-    window.document.title = `${document.title} | Somo File Compression`;
-    if (descriptionMeta) descriptionMeta.content = document.description;
-
-    return () => {
-      window.document.title = previousTitle;
-      if (descriptionMeta && previousDescription !== undefined) {
-        descriptionMeta.content = previousDescription;
-      }
-    };
-  }, [document.description, document.title]);
+  const pageTitle = SITE_PAGE_SEO[page].title;
 
   return (
-    <main className="flex-1 bg-ink-50/60 py-12 sm:py-16 lg:py-20">
+    <div className="bg-ink-50/60 py-12 sm:py-16 lg:py-20">
       <div className="container-page">
         <article className="mx-auto max-w-3xl rounded-3xl border border-ink-100 bg-white p-6 shadow-soft sm:p-10 lg:p-12">
           <button
@@ -353,7 +324,7 @@ export default function LegalPage({
             Somo File Compression
           </p>
           <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-ink-900 sm:text-4xl">
-            {document.title}
+            {pageTitle}
           </h1>
           <p className="mt-3 text-sm text-ink-500">
             Effective date: 5 November 2026
@@ -410,6 +381,6 @@ export default function LegalPage({
           </div>
         </article>
       </div>
-    </main>
+    </div>
   );
 }

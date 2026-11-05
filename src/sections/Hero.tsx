@@ -24,10 +24,17 @@ export default function Hero({
               <span className="flex h-2 w-2 rounded-full bg-brand-600" />
               100% free PDF compression
             </span>
-            <h1 className="mt-6 text-4xl font-extrabold leading-[1.1] tracking-tight text-ink-900 sm:text-5xl lg:text-[3.25rem]">
-              Compress PDF Files{' '}
-              <span className="text-brand-600">Quickly and Easily</span>
-            </h1>
+            {showCompressor ? (
+              <h1 className="mt-6 text-4xl font-extrabold leading-[1.1] tracking-tight text-ink-900 sm:text-5xl lg:text-[3.25rem]">
+                Compress PDF Files{' '}
+                <span className="text-brand-600">Quickly and Easily</span>
+              </h1>
+            ) : (
+              <h2 className="mt-6 text-4xl font-extrabold leading-[1.1] tracking-tight text-ink-900 sm:text-5xl lg:text-[3.25rem]">
+                Compress PDF Files{' '}
+                <span className="text-brand-600">Quickly and Easily</span>
+              </h2>
+            )}
             <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-ink-500 sm:text-lg lg:mx-0">
               Reduce your PDF file size with flexible compression options. Upload your PDF,
               choose your preferred compression level, and download your optimized document.

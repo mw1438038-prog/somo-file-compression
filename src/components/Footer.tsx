@@ -68,15 +68,15 @@ export default function Footer({
               </span>
             </div>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-ink-400">
-              Compress your PDF files quickly and easily without losing the quality you need.
+              Compress PDF files with flexible settings for file size and image detail.
             </p>
           </div>
 
           {FOOTER_COLUMNS.map((col) => (
             <div key={col.title}>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-white">
                 {col.title}
-              </h4>
+              </h2>
               <ul className="mt-4 space-y-2.5">
                 {col.links.map((link) =>
                   link.href ? (

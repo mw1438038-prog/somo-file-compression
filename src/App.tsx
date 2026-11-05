@@ -13,7 +13,12 @@ import FAQ from '@/sections/FAQ';
 import Contact from '@/sections/Contact';
 import FinalCTA from '@/sections/FinalCTA';
 import LegalPage from '@/pages/LegalPage';
-import { getSitePageKey } from '@/lib/legalRoutes';
+import { getSitePageKey, SITE_PAGE_PATHS } from '@/lib/legalRoutes';
+import {
+  HOME_SEO,
+  SITE_PAGE_SEO,
+  updatePageSeo,
+} from '@/lib/siteSeo';
 
 type AuthMode = 'login' | 'signup';
 
@@ -29,6 +34,27 @@ function AppContent() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  useEffect(() => {
+    const handleHashNavigation = () => {
+      if (window.location.pathname === '/') {
+        setPathname('/');
+      }
+    };
+    window.addEventListener('hashchange', handleHashNavigation);
+    return () => window.removeEventListener('hashchange', handleHashNavigation);
+  }, []);
+
+  useEffect(() => {
+    const isHome = pathname === '/' || pathname === '/index.html';
+    const seo = sitePage ? SITE_PAGE_SEO[sitePage] : isHome ? HOME_SEO : null;
+    const canonicalPath = sitePage
+      ? SITE_PAGE_PATHS[sitePage]
+      : isHome
+        ? '/'
+        : null;
+    updatePageSeo(seo, canonicalPath);
+  }, [pathname, sitePage]);
 
   const navigate = (path: string) => {
     if (window.location.pathname !== path) {

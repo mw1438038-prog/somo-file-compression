@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://somo-file-compression-jhqk-632glofah-waqas-e326.vercel.app/sitemap.xml
