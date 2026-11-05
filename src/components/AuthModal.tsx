@@ -126,12 +126,25 @@ export default function AuthModal({ open, mode, onClose, onSwitchMode }: AuthMod
           options: { data: { full_name: normalizedName } },
         });
         if (signUpError) throw signUpError;
-        if (!data.session) {
-          setPassword('');
-          setInfo('If registration succeeded, a confirmation email should arrive shortly. Confirm your email before logging in.');
-          setCanResendConfirmation(true);
-          return;
+        const { error: signOutError } = await supabase.auth.signOut({
+          scope: 'local',
+        });
+        if (signOutError) {
+          throw new Error(
+            'Your account was created, but we could not end this session. Please try logging out before continuing.',
+          );
         }
+
+        setPassword('');
+        setName('');
+        setInfo(
+          data.session
+            ? 'Your account is ready. Please log in with your email and password.'
+            : 'Your account was created. Confirm your email if requested, then log in with your email and password.',
+        );
+        setCanResendConfirmation(!data.session);
+        onSwitchMode('login');
+        return;
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: normalizedEmail,

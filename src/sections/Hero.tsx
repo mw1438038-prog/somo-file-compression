@@ -1,7 +1,13 @@
 import { ArrowRight, Play } from 'lucide-react';
 import PdfCompressor from '@/components/PdfCompressor';
 
-export default function Hero({ onRequireAuth }: { onRequireAuth: () => void }) {
+export default function Hero({
+  onRequireAuth,
+  showCompressor = true,
+}: {
+  onRequireAuth: () => void;
+  showCompressor?: boolean;
+}) {
   return (
     <section id="home" className="relative overflow-hidden scroll-mt-nav">
       {/* Decorative background */}
@@ -44,9 +50,11 @@ export default function Hero({ onRequireAuth }: { onRequireAuth: () => void }) {
             </div>
           </div>
 
-          <div id="compress" className="scroll-mt-nav">
-            <PdfCompressor onRequireAuth={onRequireAuth} />
-          </div>
+          {showCompressor && (
+            <div id="compress" className="scroll-mt-nav">
+              <PdfCompressor onRequireAuth={onRequireAuth} />
+            </div>
+          )}
         </div>
       </div>
     </section>
